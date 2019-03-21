@@ -14,18 +14,17 @@ def to_one_hot(classification):
     return hot_encoding
 
 
-def _load_batch(filename):
-    with open(filename, 'rb') as f:
-        datadict = pickle.load(f, encoding='latin1')
-        X = datadict['data']
-        Y = datadict['labels']
-        X = X.reshape(10000, np.prod(X.shape[1:])).astype("float32") / 255
-
-        Y = np.array(Y)
-        return X, Y
-
-
 def load_cifar10(path=CIFAR_DIR):
+    def _load_batch(filename):
+        with open(filename, 'rb') as f:
+            datadict = pickle.load(f, encoding='latin1')
+            X = datadict['data']
+            Y = datadict['labels']
+            X = X.reshape(10000, np.prod(X.shape[1:])).astype("float32") / 255
+
+            Y = np.array(Y)
+            return X, Y
+
     # x_train = []
     # y_train = []
     # for batch in range(1, 6):
@@ -53,7 +52,6 @@ def load_cifar10(path=CIFAR_DIR):
 
 def softmax(s):
     return np.exp(s) / np.sum(np.exp(s), axis=0)
-
 
 def plot_image(image):
     """Expects 1x3072 image size"""

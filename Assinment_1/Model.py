@@ -1,6 +1,7 @@
 import numpy as np
 import Utils
 
+
 class Classifier(object):
     def __init__(self, train_data, train_labels):
         self.train_data = train_data
@@ -8,11 +9,42 @@ class Classifier(object):
         self.weights, self.bias = self._initialize_weights(train_labels.shape[1], train_data.shape[1],
                                                            train_data.shape[0])
 
-    def _initialize_weights(self, K, d, N):
+    @staticmethod
+    def _initialize_weights(K, d, N):
         weigts = np.random.normal(0, 0.01, size=(K, d))
         bias = np.random.normal(0, 0.01, size=(K, N))
 
         return weigts, bias
+
+    def fit(self):
+        fwd = self.forward_pass()
+
+    def forward_pass(self):
+        product = np.dot(self.weights, self.train_data) + self.bias
+        output = Utils.softmax(product)
+        return output
+
+    def backward_pass(self):
+        pass
+
+    def evaluate(self):
+        pass
+
+    def update_weights(self):
+        pass
+
+
+
+
+def evaluate_classifier(w, x, b):
+    s = np.dot(w, x.T) + b
+    s = Utils.softmax(s)
+    pred = np.argmax(s, axis=0)
+    print(pred)
+
+
+def compute_cost(x, label, w, b, l):
+    pass
 
 
 if __name__ == "__main__":
@@ -23,8 +55,4 @@ if __name__ == "__main__":
 
     model = Classifier(X_train, y_train)
 
-    s = np.dot(model.weights, X_train.T) + model.bias
-    s = Utils.softmax(s)
-    pred = np.argmax(s,axis=0)
-
-    print(pred)
+    evaluate_classifier(model.weights, X_train[0:100], model.bias[:, 0:100])
