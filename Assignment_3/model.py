@@ -83,9 +83,8 @@ class Dense(BaseLayer):
         self.l2 = l2_regul
         self.std = std
 
-        self.W = np.random.normal(0, self.std, size=(self.output_size, self.input_size))
+        self.W = np.random.normal(loc=0.0, scale=std, size=(self.output_size, self.input_size))
         self.b = np.zeros((self.output_size, 1))
-        # self.b = np.random.normal(0, self.std, size=(self.output_size, 1))
 
         self.grad_w = np.zeros_like(self.W, dtype=float)
         self.grad_b = np.zeros_like(self.b, dtype=float)
@@ -125,21 +124,23 @@ class BatchNormalization(BaseLayer):
 
     def __init__(self, input_size=0, name='BatchNormalization'):
         super().__init__(input_size, input_size, name)
-        self.epsilon = 0.0001
+        self.epsilon = 1e-16
+        self.gamma = np.ones((input_size, 1))
+        self.beta = np.zeros((input_size, 1))
 
     def forward_pass(self, input):
         N = input.shape[0]
-        self.mu = (np.sum(input, axis=0) / N).reshape(1, -1)
-        self.var = (np.sum((input - self.mu) ** 2, axis=0) / N).reshape(1, -1)
 
-        mu = np.mean(input, axis=0).reshape(1, -1)
+        mean = input.mean(axis=1, keepdims=True)
+        var = input.var(axis=1)
 
-        sigma = np.std(input, axis=0).reshape(1, -1)
+        self.mu = np.mean(input, axis=0).reshape(1, -1)
 
-        normalized_data1 = (input - mu) / sigma
-        # normalized_data2 = np.power(np.diag(self.var + self.epsilon), 1 / 2) * (input - self.mu)
+        self.var = np.var(input, axis=0).reshape(1, -1)
 
-        return normalized_data1
+        normalized_data = np.dot((np.linalg.inv(np.sqrt(np.diag(self.var + self.epsilon)))), input - self.mu)
+
+        return normalized_data
 
     def backward_pass(self, grad):
         pass
@@ -357,19 +358,18 @@ if __name__ == "__main__":
     cyclical_values = {'eta_min': 1e-5, 'eta_max': 1e-1, 'noc': noc, 'k': 5}
 
     param = {}
-    # l = l_min + (l_max - l_min) * np.random.random_sample()
-    # l = np.power(10, l)
-    #
-    # param['l'] = round(l, 6)
     l = 0.005
+
     start_time = time.time()
 
     dense1 = Dense(input_size=dim_size, output_size=50, l2_regul=l, std=1 / np.sqrt(dim_size))
+    batch_norm1 = BatchNormalization(50)
     dense2 = Dense(input_size=50, output_size=50, l2_regul=l, std=1 / np.sqrt(50))
     dense3 = Dense(input_size=50, output_size=10, l2_regul=l, std=1 / np.sqrt(50))
 
     model = Classifier()
     model.add_layer(dense1)
+    model.add_layer(batch_norm1)
     model.add_layer(ReLU())
     model.add_layer(dense2)
     model.add_layer(ReLU())
