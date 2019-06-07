@@ -26,8 +26,9 @@ class SoftMax(BaseLayer):
     def __init__(self, input_size=0, name='Softmax'):
         super().__init__(input_size, input_size, name)
 
-    def forward_pass(self, s):
-        exp = np.exp(s.T)
+    def forward_pass(self, input):
+        self.X = input
+        exp = np.exp(input.T)
         sum = np.sum(exp, axis=0)
 
         p = (exp / sum).T
@@ -120,33 +121,72 @@ class Dense(BaseLayer):
         return J
 
 
-class BatchNormalization(BaseLayer):
+class BnWithScaleShift(BaseLayer):
 
     def __init__(self, input_size=0, name='BatchNormalization'):
+        # WITH SCALE AND SHIFT
         super().__init__(input_size, input_size, name)
         self.epsilon = 1e-16
-        self.gamma = np.ones((input_size, 1))
-        self.beta = np.zeros((input_size, 1))
+        self.gamma = np.ones((1, input_size))
+        self.beta = np.zeros((1, input_size))
 
     def forward_pass(self, input):
-        N = input.shape[0]
+        self.X = input
 
-        mean = input.mean(axis=1, keepdims=True)
-        var = input.var(axis=1)
-
-        self.mu = np.mean(input, axis=0).reshape(1, -1)
-
-        self.var = np.var(input, axis=0).reshape(1, -1)
-
-        normalized_data = np.dot((np.linalg.inv(np.sqrt(np.diag(self.var + self.epsilon)))), input - self.mu)
-
-        return normalized_data
+        # Batch Norm
+        self.bn_fwd = self._normalize()
+        # Apply Shift and Scale
+        fwd = self.bn_fwd * self.gamma + self.beta
+        return fwd
 
     def backward_pass(self, grad):
-        pass
+        grad = self._bn_scale_shift(grad)
+        grad = self._bn_backprop(grad)
+        return grad
 
     def cost(self):
         return 0
+
+    def _normalize(self):
+        input = self.X
+        N = input.shape[0]
+
+        mu = np.mean(input, axis=0).reshape(1, -1)
+        var = np.var(input, axis=0)
+        var *= (N - 1) / N
+
+        self.mu, self.var = mu, var
+
+        normalized = np.dot(input - mu, (np.linalg.inv(np.sqrt(np.diag(var + self.epsilon)))))
+
+        return normalized
+
+    def _bn_scale_shift(self, grad):
+        N = self.X.shape[0]
+
+        self.grad_gamma = np.dot(np.ones((1, N)), np.multiply(grad, self.bn_fwd)) / N
+        self.grad_beta = np.dot(np.ones((1, N)), grad) / N
+
+        grad = np.multiply(np.dot(np.ones((1, N)).T, self.gamma), grad)
+
+        return grad
+
+    def _bn_backprop(self, grad):
+        N = self.X.shape[0]
+
+        s1 = np.power((self.var + self.epsilon), -0.5).reshape(1, -1)
+        s2 = np.power((self.var + self.epsilon), -1.5).reshape(1, -1)
+
+        grad_1 = np.multiply(np.dot(np.ones((N, 1)), s1), grad)
+
+        grad_2 = np.multiply(np.dot(np.ones((N, 1)), s2), grad)
+
+        D = self.X - np.dot(np.ones((N, 1)), self.mu)
+        c = np.dot(np.ones((1, N)), np.multiply(grad_2, D))
+
+        grad = grad_1 - np.dot(np.ones((1, N)), grad_1) / N - np.multiply(np.dot(np.ones((N, 1)), c), D) / N
+
+        return grad
 
 
 class Classifier(object):
@@ -162,6 +202,10 @@ class Classifier(object):
                 layer.W -= eta * layer.grad_w
                 layer.b -= eta * layer.grad_b
 
+            if layer.name is 'BatchNormalization':
+                layer.gamma -= eta * layer.grad_gamma
+                layer.beta -= eta * layer.grad_beta
+
     def forward_pass(self, input):
         output = input
         for layer in self.layers:
@@ -174,9 +218,7 @@ class Classifier(object):
         grad = []
         for layer in self.layers[::-1]:
             if layer.name is 'Softmax':
-
                 grad = layer.backward_pass(labels)
-
             else:
                 grad = layer.backward_pass(grad)
 
@@ -303,7 +345,7 @@ class Classifier(object):
         self.train_loss = []
         self.train_acc = []
 
-        print("        Fit Started!!")
+        print("            Fit Started!!")
         if cyclical_values:
             print("-----------------------------------------")
             print("        Train Cyclical Version")
@@ -343,7 +385,6 @@ if __name__ == "__main__":
     N = X_train.shape[0]
     d = X_train.shape[1]
 
-    print(N, d)
     train_examples = N
     dim_size = d
 
@@ -363,16 +404,21 @@ if __name__ == "__main__":
     start_time = time.time()
 
     dense1 = Dense(input_size=dim_size, output_size=50, l2_regul=l, std=1 / np.sqrt(dim_size))
-    batch_norm1 = BatchNormalization(50)
+    batch_norm1 = BnWithScaleShift(50)
     dense2 = Dense(input_size=50, output_size=50, l2_regul=l, std=1 / np.sqrt(50))
+    batch_norm2 = BnWithScaleShift(50)
     dense3 = Dense(input_size=50, output_size=10, l2_regul=l, std=1 / np.sqrt(50))
 
     model = Classifier()
+
     model.add_layer(dense1)
     model.add_layer(batch_norm1)
     model.add_layer(ReLU())
+
     model.add_layer(dense2)
+    model.add_layer(batch_norm2)
     model.add_layer(ReLU())
+
     model.add_layer(dense3)
     model.add_layer(SoftMax())
 
