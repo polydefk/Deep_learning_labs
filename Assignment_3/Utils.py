@@ -2,7 +2,7 @@ import csv
 import pickle
 import os
 from sklearn.model_selection import train_test_split
-from model import *
+from Assignment_3.model import *
 
 from tqdm import tqdm
 from copy import deepcopy
@@ -11,6 +11,28 @@ import numpy as np
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # Directory of the script
 CIFAR_DIR = os.path.join(ROOT_DIR, 'CIFAR10/')  # Directory of the dataset
 PLOT_DIR = os.path.join(ROOT_DIR, 'plots/')
+
+
+def plot_loss_acc(train_loss, train_acc, val_loss, val_acc):
+    fig = plt.figure()
+    ax = fig.gca()
+    plt.title('Final plot of cost')
+    plt.plot(train_loss, color='r')
+    plt.plot(val_loss, color='g')
+    plt.xlabel('Epochs')
+    plt.legend(['train_cost', 'val_cost'])
+    plt.grid()
+
+    fig = plt.figure()
+    ax = fig.gca()
+    plt.title('Final plot of accuracy')
+    plt.plot(train_acc, color='r')
+    plt.plot(val_acc, color='g')
+    plt.xlabel('Epochs')
+    plt.legend(['train_accuracy', 'val_accuracy'])
+    plt.grid()
+    plt.show()
+
 
 def write_to_csv(dictionary):
     with open('results.csv', 'a', newline='') as csvfile:
@@ -74,29 +96,36 @@ def normalize_data(input, mu=None, sigma=None):
 def print_grad_diff(grad_w, grad_w_num):
     print('Grad W:')
     print('sum of abs difference: {}'.format(np.abs(grad_w - grad_w_num).sum()))
-    print('mean of abs values W: {}   W_num: {}'
+    print('mean of abs values: {}   W_num: {}'
           .format(np.abs(grad_w).mean(), np.abs(grad_w_num).mean()))
 
-    relative_error_w = np.abs(grad_w - grad_w_num) / np.maximum(np.abs(grad_w) + np.abs(grad_w_num),
-                                                                1e-6 * np.ones(shape=grad_w.shape))
+    relative_error = np.abs(grad_w - grad_w_num) / np.maximum(np.abs(grad_w) + np.abs(grad_w_num),
+                                                              1e-6 * np.ones(shape=grad_w.shape))
 
-    print('Relative error: {}'.format(relative_error_w))
+    # print('Relative error: {}'.format(relative_error))
+    #
+    # max_err = relative_error.max()
+    # n_ok = (relative_error < 1e-05).sum()
+    # p_ok = n_ok / grad_w_num.size * 100
+    #
+    # print(f'Max error: {max_err}\nPercentage of values under max tolerated value: {p_ok}\n' +
+    #       f'eps: {1e-16}\tMax tolerated error: {1e-05}')
 
     low_enough = 0
-    for i in range(relative_error_w.shape[0]):
-        for j in range(relative_error_w.shape[1]):
-            if relative_error_w[i][j] < 1e-05:
+    for i in range(relative_error.shape[0]):
+        for j in range(relative_error.shape[1]):
+            if relative_error[i][j] < 1e-05:
                 low_enough += 1
 
-    percentage = round(low_enough * 100 / (relative_error_w.shape[0] * relative_error_w.shape[1]), 4)
+    percentage = round(low_enough * 100 / (relative_error.shape[0] * relative_error.shape[1]), 4)
     print("Low enough error is {0} for threshold {1}".format(percentage, 1e-5))
+
 
 
 def compute_grads_for_matrix(y, x, W, model, grad_w):
     h = 1e-5
     grad_list = []
     for k in range(len(W)):
-
         grad_num = np.zeros_like(W[k])
         desc = 'Gradient computations for a {} layer weights, {} samples' \
             .format(k + 1, x.shape[0])
@@ -105,13 +134,13 @@ def compute_grads_for_matrix(y, x, W, model, grad_w):
                 for j in range(W[k].shape[1]):
                     W_try = deepcopy(W[k])
                     W_try[i][j] -= h
-                    model.layers[k * 2].W = W_try
+                    model.layers[k * 3].W = W_try
                     model.forward_pass(x)
                     c1 = model.cost(y, None)
 
                     W_try = deepcopy(W[k])
                     W_try[i][j] += h
-                    model.layers[k * 2].W = W_try
+                    model.layers[k * 3].W = W_try
                     model.forward_pass(x)
                     c2 = model.cost(y, None)
 

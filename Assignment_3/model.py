@@ -129,6 +129,7 @@ class BnWithScaleShift(BaseLayer):
         self.epsilon = 1e-16
         self.gamma = np.ones((1, input_size))
         self.beta = np.zeros((1, input_size))
+        self.first_batch = True
 
     def forward_pass(self, input):
         self.X = input
@@ -137,6 +138,7 @@ class BnWithScaleShift(BaseLayer):
         self.bn_fwd = self._normalize()
         # Apply Shift and Scale
         fwd = self.bn_fwd * self.gamma + self.beta
+
         return fwd
 
     def backward_pass(self, grad):
@@ -147,26 +149,29 @@ class BnWithScaleShift(BaseLayer):
     def cost(self):
         return 0
 
-    def _normalize(self):
+    def _normalize(self, a_exp=0.9):
         input = self.X
-        N = input.shape[0]
-
         mu = np.mean(input, axis=0).reshape(1, -1)
+        N = input.shape[0]
         var = np.var(input, axis=0)
         var *= (N - 1) / N
 
-        self.mu, self.var = mu, var
+        if self.first_batch:
+            self.mu, self.var = mu, var
+        else:
+            self.mu = a_exp * self.mu + (1 - a_exp) * mu
+            self.var = a_exp * self.var + (1 - a_exp) * var
 
-        normalized = np.dot(input - mu, (np.linalg.inv(np.sqrt(np.diag(var + self.epsilon)))))
+        normalized = np.dot(input - self.mu, (np.linalg.inv(np.sqrt(np.diag(self.var + self.epsilon)))))
+
 
         return normalized
 
     def _bn_scale_shift(self, grad):
         N = self.X.shape[0]
-
         self.grad_gamma = np.dot(np.ones((1, N)), np.multiply(grad, self.bn_fwd)) / N
-        self.grad_beta = np.dot(np.ones((1, N)), grad) / N
 
+        self.grad_beta = np.dot(np.ones((1, N)), grad) / N
         grad = np.multiply(np.dot(np.ones((1, N)).T, self.gamma), grad)
 
         return grad
@@ -182,9 +187,10 @@ class BnWithScaleShift(BaseLayer):
         grad_2 = np.multiply(np.dot(np.ones((N, 1)), s2), grad)
 
         D = self.X - np.dot(np.ones((N, 1)), self.mu)
-        c = np.dot(np.ones((1, N)), np.multiply(grad_2, D))
 
+        c = np.dot(np.ones((1, N)), np.multiply(grad_2, D))
         grad = grad_1 - np.dot(np.ones((1, N)), grad_1) / N - np.multiply(np.dot(np.ones((N, 1)), c), D) / N
+
 
         return grad
 
@@ -210,7 +216,10 @@ class Classifier(object):
         output = input
         for layer in self.layers:
             output = layer.forward_pass(output)
-
+        for layer in self.layers:
+            if layer.name is 'BatchNormalization':
+                if layer.first_batch:
+                    layer.first_batch = False
         return output
 
     def backward_pass(self, labels):
@@ -289,6 +298,7 @@ class Classifier(object):
         etas = []
 
         while True:
+            np.random.shuffle(indexes)
 
             for j in range(1, n_batch_loops):
 
@@ -317,7 +327,6 @@ class Classifier(object):
                 self.update_weights(eta)
                 time_step += 1
 
-            np.random.shuffle(indexes)
             val_loss = self.cost(val_labels, val_data)
             train_loss = self.cost(train_labels, train_data)
             val_acc = self.predict(val_data, val_labels)
@@ -405,8 +414,10 @@ if __name__ == "__main__":
 
     dense1 = Dense(input_size=dim_size, output_size=50, l2_regul=l, std=1 / np.sqrt(dim_size))
     batch_norm1 = BnWithScaleShift(50)
+
     dense2 = Dense(input_size=50, output_size=50, l2_regul=l, std=1 / np.sqrt(50))
     batch_norm2 = BnWithScaleShift(50)
+
     dense3 = Dense(input_size=50, output_size=10, l2_regul=l, std=1 / np.sqrt(50))
 
     model = Classifier()

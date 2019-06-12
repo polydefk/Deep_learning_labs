@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from copy import deepcopy
 from sklearn.model_selection import train_test_split
-import Model
+import Assignment_1.Model as Model
 import csv
 import operator
 
