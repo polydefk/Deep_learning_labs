@@ -1,5 +1,5 @@
 import numpy as np
-import Utils
+from Assignment_3.Utils import *
 from matplotlib import pyplot as plt
 import time
 
@@ -110,7 +110,7 @@ class Dense(BaseLayer):
             grad_b += np.reshape(g, grad_b.shape)
 
         self.grad_w = (grad_w / N) + 2 * np.multiply(self.l2, self.W)
-        self.grad_b /= N
+        self.grad_b = grad_b / N
 
         return np.dot(grad, self.W)
 
@@ -164,18 +164,40 @@ class BnWithScaleShift(BaseLayer):
 
         normalized = np.dot(input - self.mu, (np.linalg.inv(np.sqrt(np.diag(self.var + self.epsilon)))))
 
-
         return normalized
 
     def _bn_scale_shift(self, grad):
         N = self.X.shape[0]
+
         self.grad_gamma = np.dot(np.ones((1, N)), np.multiply(grad, self.bn_fwd)) / N
 
         self.grad_beta = np.dot(np.ones((1, N)), grad) / N
-        grad = np.multiply(np.dot(np.ones((1, N)).T, self.gamma), grad)
+        grad = grad * np.dot(np.ones((1, N)).T, self.gamma)
+
+        # ones = np.ones((N, 1))
+        # G = grad.T
+        # self.grad_gamma = (1 / N) * (G * self.bn_fwd.T).dot(ones)
+        # self.grad_beta = (1 / N) * G.dot(ones)
+
+        # grad = G * self.gamma.T.dot(ones.T)
+
 
         return grad
 
+    def _BN_backpass(self, G):
+        G = G.T
+        N = self.X.shape[0]
+        oneT = np.ones((1, N))
+        sigma1 = ((self.var + self.epsilon) ** -0.5).reshape(-1, 1)
+        sigma2 = ((self.var + self.epsilon) ** -1.5).reshape(-1, 1)
+        G1 = G * (sigma1.dot(oneT))
+        G2 = G * (sigma2.dot(oneT))
+        D = self.X - mu.dot(oneT)
+        c = (G2 * D).dot(oneT.T)
+        G = G1 - (1 / N) * (G1.dot(oneT.T)).dot(oneT) - (1 / N) * D * (c.dot(oneT))  # TODO: can be optimized
+        return G
+
+    #
     def _bn_backprop(self, grad):
         N = self.X.shape[0]
 
@@ -190,7 +212,6 @@ class BnWithScaleShift(BaseLayer):
 
         c = np.dot(np.ones((1, N)), np.multiply(grad_2, D))
         grad = grad_1 - np.dot(np.ones((1, N)), grad_1) / N - np.multiply(np.dot(np.ones((N, 1)), c), D) / N
-
 
         return grad
 
@@ -216,10 +237,10 @@ class Classifier(object):
         output = input
         for layer in self.layers:
             output = layer.forward_pass(output)
-        for layer in self.layers:
             if layer.name is 'BatchNormalization':
                 if layer.first_batch:
                     layer.first_batch = False
+
         return output
 
     def backward_pass(self, labels):
@@ -386,10 +407,10 @@ class Classifier(object):
 if __name__ == "__main__":
     np.seterr(all='raise')
     #
-    X_train, y_train, X_val, y_val, X_test, y_test = Utils.load_cifar10(whole_dataset=True)
-    X_train, mu, sigma = Utils.normalize_data(X_train)
-    X_val, *_ = Utils.normalize_data(X_val, mu, sigma)
-    X_test, *_ = Utils.normalize_data(X_test, mu, sigma)
+    X_train, y_train, X_val, y_val, X_test, y_test = load_cifar10(whole_dataset=True)
+    X_train, mu, sigma = normalize_data(X_train)
+    X_val, *_ = normalize_data(X_val, mu, sigma)
+    X_test, *_ = normalize_data(X_test, mu, sigma)
 
     N = X_train.shape[0]
     d = X_train.shape[1]
@@ -405,23 +426,42 @@ if __name__ == "__main__":
     noc = 2
     l_min = -5
     l_max = -1
-    cyclical_values = {'eta_min': 1e-5, 'eta_max': 1e-1, 'noc': noc, 'k': 5}
 
     param = {}
     l = 0.005
 
+    cyclical_values = {'eta_min': 1e-5, 'eta_max': 1e-1, 'noc': noc, 'k': 5, 'lamda': 0.005}
+
     start_time = time.time()
+
 
     dense1 = Dense(input_size=dim_size, output_size=50, l2_regul=l, std=1 / np.sqrt(dim_size))
     batch_norm1 = BnWithScaleShift(50)
 
-    dense2 = Dense(input_size=50, output_size=50, l2_regul=l, std=1 / np.sqrt(50))
-    batch_norm2 = BnWithScaleShift(50)
+    dense2 = Dense(input_size=50, output_size=20, l2_regul=l, std=1 / np.sqrt(30))
+    batch_norm2 = BnWithScaleShift(20)
 
-    dense3 = Dense(input_size=50, output_size=10, l2_regul=l, std=1 / np.sqrt(50))
+    dense3 = Dense(input_size=20, output_size=20, l2_regul=l, std=1 / np.sqrt(20))
+    batch_norm3 = BnWithScaleShift(20)
+
+    dense4 = Dense(input_size=20, output_size=20, l2_regul=l, std=1 / np.sqrt(20))
+    batch_norm4 = BnWithScaleShift(20)
+
+    dense5 = Dense(input_size=20, output_size=10, l2_regul=l, std=1 / np.sqrt(10))
+    batch_norm5 = BnWithScaleShift(10)
+
+    dense6 = Dense(input_size=10, output_size=10, l2_regul=l, std=1 / np.sqrt(10))
+    batch_norm6 = BnWithScaleShift(10)
+
+    dense7 = Dense(input_size=10, output_size=10, l2_regul=l, std=1 / np.sqrt(10))
+    batch_norm7 = BnWithScaleShift(10)
+
+    dense8 = Dense(input_size=10, output_size=10, l2_regul=l, std=1 / np.sqrt(10))
+    batch_norm8 = BnWithScaleShift(10)
+
+    dense9 = Dense(input_size=10, output_size=10, l2_regul=l, std=1 / np.sqrt(10))
 
     model = Classifier()
-
     model.add_layer(dense1)
     model.add_layer(batch_norm1)
     model.add_layer(ReLU())
@@ -431,6 +471,30 @@ if __name__ == "__main__":
     model.add_layer(ReLU())
 
     model.add_layer(dense3)
+    model.add_layer(batch_norm3)
+    model.add_layer(ReLU())
+
+    model.add_layer(dense4)
+    model.add_layer(batch_norm4)
+    model.add_layer(ReLU())
+
+    model.add_layer(dense5)
+    model.add_layer(batch_norm5)
+    model.add_layer(ReLU())
+
+    model.add_layer(dense6)
+    model.add_layer(batch_norm6)
+    model.add_layer(ReLU())
+
+    model.add_layer(dense7)
+    model.add_layer(batch_norm7)
+    model.add_layer(ReLU())
+
+    model.add_layer(dense8)
+    model.add_layer(batch_norm8)
+    model.add_layer(ReLU())
+
+    model.add_layer(dense9)
     model.add_layer(SoftMax())
 
     train_loss, val_loss, train_acc, val_acc = model.fit(X_train, y_train,
@@ -449,17 +513,6 @@ if __name__ == "__main__":
     param['number of cycles'] = noc
     param['time'] = round(end_time, 2)
 
-    # Utils.write_to_csv(param)
+    write_to_csv(param)
 
-    plt.figure()
-    plt.title('Cost for lambda: {} cycles: {}'.format(l, noc))
-    plt.plot(train_loss)
-    plt.plot(val_loss)
-    plt.legend(['train_loss,val_loss'])
-
-    plt.figure()
-    plt.title('Accuracy for lambda: {} cycles: {}'.format(l, noc))
-    plt.plot(train_acc)
-    plt.plot(val_acc)
-    plt.legend(['train_acc,val_acc'])
-    plt.show()
+    plot_loss_acc(train_loss, train_acc, val_loss, val_acc)

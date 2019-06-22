@@ -103,7 +103,7 @@ def print_grad_diff(grad_w, grad_w_num):
                                                               1e-6 * np.ones(shape=grad_w.shape))
 
     # print('Relative error: {}'.format(relative_error))
-    #
+    # #
     # max_err = relative_error.max()
     # n_ok = (relative_error < 1e-05).sum()
     # p_ok = n_ok / grad_w_num.size * 100
@@ -111,15 +111,17 @@ def print_grad_diff(grad_w, grad_w_num):
     # print(f'Max error: {max_err}\nPercentage of values under max tolerated value: {p_ok}\n' +
     #       f'eps: {1e-16}\tMax tolerated error: {1e-05}')
 
-    low_enough = 0
-    for i in range(relative_error.shape[0]):
-        for j in range(relative_error.shape[1]):
-            if relative_error[i][j] < 1e-05:
-                low_enough += 1
+    thresholds = [1e-5, 1e-6, 1e-7, 1e-8]
+    for threshold in thresholds:
+        low_enough = 0
 
-    percentage = round(low_enough * 100 / (relative_error.shape[0] * relative_error.shape[1]), 4)
-    print("Low enough error is {0} for threshold {1}".format(percentage, 1e-5))
+        for i in range(relative_error.shape[0]):
+            for j in range(relative_error.shape[1]):
+                if relative_error[i][j] < threshold:
+                    low_enough += 1
 
+        percentage = round(low_enough * 100 / (relative_error.shape[0] * relative_error.shape[1]), 4)
+        print("Low enough error is {0} for threshold {1}".format(percentage, threshold))
 
 
 def compute_grads_for_matrix(y, x, W, model, grad_w):
@@ -134,13 +136,13 @@ def compute_grads_for_matrix(y, x, W, model, grad_w):
                 for j in range(W[k].shape[1]):
                     W_try = deepcopy(W[k])
                     W_try[i][j] -= h
-                    model.layers[k * 3].W = W_try
+                    model.layers[k * 2].b = W_try
                     model.forward_pass(x)
                     c1 = model.cost(y, None)
 
                     W_try = deepcopy(W[k])
                     W_try[i][j] += h
-                    model.layers[k * 3].W = W_try
+                    model.layers[k * 2].b = W_try
                     model.forward_pass(x)
                     c2 = model.cost(y, None)
 

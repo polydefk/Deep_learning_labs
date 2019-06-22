@@ -1,4 +1,4 @@
-from model import *
+from Assignment_2.model import *
 import Utils
 
 
@@ -90,11 +90,14 @@ def test_grad_checking_both_layers():
 
     dense1 = Dense(input_size=dim_size, output_size=15, l2_regul=0., std=1 / np.sqrt(dim_size))
     dense2 = Dense(input_size=15, output_size=10, l2_regul=0, std=1 / np.sqrt(50))
+    dense3 = Dense(input_size=15, output_size=10, l2_regul=0, std=1 / np.sqrt(50))
 
     model = Classifier()
     model.add_layer(dense1)
     model.add_layer(ReLU())
     model.add_layer(dense2)
+    model.add_layer(dense3)
+    model.add_layer(ReLU())
     model.add_layer(SoftMax())
 
     model.forward_pass(X_train)
@@ -107,24 +110,7 @@ def test_grad_checking_both_layers():
 
 
 
-def test_Batch_normalization():
-    X_train, y_train, X_val, y_val, X_test, y_test = Utils.load_cifar10(whole_dataset=False)
-    batch_size = 20
-    dim_size = 500
-    X_train, mu, sigma = Utils.normalize_data(X_train)
-    X_val, *_ = Utils.normalize_data(X_val, mu, sigma)
-    X_test, *_ = Utils.normalize_data(X_test, mu, sigma)
 
-    X_train = X_train[:batch_size, :dim_size]
-    y_train = y_train[:batch_size]
 
-    dense1 = Dense(input_size=dim_size, output_size=15, l2_regul=0., std=1 / np.sqrt(dim_size))
-    dense2 = Dense(input_size=15, output_size=10, l2_regul=0, std=1 / np.sqrt(50))
-
-    model = Classifier()
-    model.add_layer(dense1)
-    model.add_layer(ReLU())
-    model.add_layer(dense2)
-    model.add_layer(SoftMax())
-
-    model.forward_pass(X_train)
+if __name__ == "__main__":
+    test_grad_checking_both_layers()

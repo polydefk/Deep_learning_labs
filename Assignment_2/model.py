@@ -8,11 +8,11 @@ from tqdm import tqdm
 from copy import deepcopy
 import pickle
 
-
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # Directory of the script
 CIFAR_DIR = os.path.join(ROOT_DIR, 'CIFAR10/')  # Directory of the dataset
 PLOT_DIR = os.path.join(ROOT_DIR, 'plots/')
 np.random.seed(123)
+
 
 def write_to_csv(dictionary):
     with open('results.csv', 'a', newline='') as csvfile:
@@ -230,6 +230,7 @@ def plot_loss_acc(train_loss, train_acc, val_loss, val_acc):
     plt.grid()
     plt.show()
 
+
 class BaseLayer:
     def __init__(self, input_size, output_size, name):
         self.input_size = input_size
@@ -334,7 +335,7 @@ class Dense(BaseLayer):
             grad_b += np.reshape(g, grad_b.shape)
 
         self.grad_w = (grad_w / N) + 2 * np.multiply(self.l2, self.W)
-        self.grad_b /= N
+        self.grad_b = grad_b / N
 
         return np.dot(grad, self.W)
 
@@ -588,4 +589,3 @@ if __name__ == "__main__":
     Utils.write_to_csv(param)
 
     Utils.plot_loss_acc(train_loss, train_acc, val_loss, val_acc)
-
